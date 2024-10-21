@@ -1,11 +1,18 @@
 import { SFNClient, ListStateMachinesCommand, DescribeStateMachineCommand } from "@aws-sdk/client-sfn";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const sfnClient = new SFNClient({ region: process.env.AWS_REGION });
+let sfnClient: SFNClient;
+
+async function getStepFunctionsClient() {
+    if (!sfnClient) {
+        sfnClient = new SFNClient({ region });
+    }
+    return sfnClient;
+}
 
 async function listStepFunctionsResources(startDate?: Date, endDate?: Date) {
     console.log("Step Functions 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listStepFunctionsResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentStepFunctionsStateMachines() {
+    const client = await getStepFunctionsClient();
     const command = new ListStateMachinesCommand({});
-    const response = await retryWithBackoff(() => sfnClient.send(command), 'StepFunctions');
+    const response = await retryWithBackoff(() => client.send(command), 'StepFunctions');
     const stateMachines = await Promise.all(response.stateMachines.map(async (sm: any) => {
       const describeCommand = new DescribeStateMachineCommand({ stateMachineArn: sm.stateMachineArn });
-      const describeResponse = await retryWithBackoff(() => sfnClient.send(describeCommand), 'StepFunctions');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'StepFunctions');
       return describeResponse;
     }));
     return stateMachines;

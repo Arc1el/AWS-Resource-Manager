@@ -1,11 +1,18 @@
 import { ElasticBeanstalkClient, DescribeApplicationsCommand } from "@aws-sdk/client-elastic-beanstalk";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const elasticBeanstalkClient = new ElasticBeanstalkClient({ region });
+let elasticBeanstalkClient: ElasticBeanstalkClient;
+
+async function getElasticBeanstalkClient() {
+  if (!elasticBeanstalkClient) {
+    elasticBeanstalkClient = await createAwsClient(ElasticBeanstalkClient);
+  }
+  return elasticBeanstalkClient;
+}
 
 async function listElasticBeanstalkApplicationResources(startDate?: Date, endDate?: Date) {
     console.log("Elastic Beanstalk Application 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listElasticBeanstalkApplicationResources(startDate?: Date, endDat
   
   async function getCurrentElasticBeanstalkApplications() {
     const command = new DescribeApplicationsCommand({});
-    const response = await retryWithBackoff(() => elasticBeanstalkClient.send(command), 'Elastic Beanstalk');
+    const client = await getElasticBeanstalkClient();
+    const response = await retryWithBackoff(() => client.send(command), 'Elastic Beanstalk');
     return response.Applications;
   }
 

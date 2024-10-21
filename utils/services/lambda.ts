@@ -1,11 +1,18 @@
 import { LambdaClient, ListFunctionsCommand, GetFunctionCommand } from "@aws-sdk/client-lambda";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const lambdaClient = new LambdaClient({ region });
+let lambdaClient: LambdaClient;
+
+async function getLambdaClient() {
+    if (!lambdaClient) {
+        lambdaClient = new LambdaClient({ region });
+    }
+    return lambdaClient;
+}
 
 async function listLambdaFunctionResources(startDate?: Date, endDate?: Date) {
     console.log("Lambda Function 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listLambdaFunctionResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentLambdaFunctions() {
+    const client = await getLambdaClient();
     const listCommand = new ListFunctionsCommand({});
-    const listResponse = await retryWithBackoff(() => lambdaClient.send(listCommand), 'Lambda');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Lambda');
     const functions = await Promise.all(listResponse.Functions.map(async (func: any) => {
       const getCommand = new GetFunctionCommand({ FunctionName: func.FunctionName });
-      const getResponse = await retryWithBackoff(() => lambdaClient.send(getCommand), 'Lambda');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'Lambda');
       return getResponse.Configuration;
     }));
     return functions;

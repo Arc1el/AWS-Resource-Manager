@@ -1,12 +1,18 @@
 import { ECRClient, DescribeRepositoriesCommand } from "@aws-sdk/client-ecr";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const ecrClient = new ECRClient({ region });
+let ecrClient: ECRClient;
 
+async function getECRClient() {
+    if (!ecrClient) {
+        ecrClient = new ECRClient({ region });
+    }
+    return ecrClient;
+}
 
 async function listECRResources(startDate?: Date, endDate?: Date) {
     console.log("ECR 조회 기간:", startDate, "~", endDate);
@@ -48,7 +54,8 @@ async function listECRResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentECRRepositories() {
     const command = new DescribeRepositoriesCommand({});
-    const response = await retryWithBackoff(() => ecrClient.send(command), 'ECR');
+    const client = await getECRClient();
+    const response = await retryWithBackoff(() => client.send(command), 'ECR');
     return response.repositories;
   }
 

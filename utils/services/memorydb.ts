@@ -1,11 +1,18 @@
 import { MemoryDBClient, DescribeClustersCommand as MemoryDBDescribeClustersCommand } from "@aws-sdk/client-memorydb";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const memoryDBClient = new MemoryDBClient({ region });
+let memoryDBClient: MemoryDBClient;
+
+async function getMemoryDBClient() {
+    if (!memoryDBClient) {
+        memoryDBClient = new MemoryDBClient({ region });
+    }
+    return memoryDBClient;
+}
 
 async function listMemoryDBResources(startDate?: Date, endDate?: Date) {
     console.log("MemoryDB 조회 기간:", startDate, "~", endDate);
@@ -46,8 +53,9 @@ async function listMemoryDBResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentMemoryDBClusters() {
+    const client = await getMemoryDBClient();
     const command = new MemoryDBDescribeClustersCommand({});
-    const response = await retryWithBackoff(() => memoryDBClient.send(command), 'MemoryDB');
+    const response = await retryWithBackoff(() => client.send(command), 'MemoryDB');
     return response.Clusters;
   }
 

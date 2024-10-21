@@ -1,12 +1,19 @@
 import { FirehoseClient, ListDeliveryStreamsCommand, DescribeDeliveryStreamCommand } from "@aws-sdk/client-firehose";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const firehoseClient = new FirehoseClient({ region });
+let firehoseClient: FirehoseClient;
+
+async function getFirehoseClient() {
+    if (!firehoseClient) {
+        firehoseClient = new FirehoseClient({ region });
+    }
+    return firehoseClient;
+}
 
 async function listFirehoseResources(startDate?: Date, endDate?: Date) {
     console.log("Kinesis Firehose Delivery Stream 조회 기간:", startDate, "~", endDate);
@@ -47,11 +54,12 @@ async function listFirehoseResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentFirehoseStreams() {
+    const client = await getFirehoseClient();
     const listCommand = new ListDeliveryStreamsCommand({});
-    const listResponse = await retryWithBackoff(() => firehoseClient.send(listCommand), 'Firehose');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Firehose');
     const streams = await Promise.all(listResponse.DeliveryStreamNames.map(async (streamName: any) => {
       const describeCommand = new DescribeDeliveryStreamCommand({ DeliveryStreamName: streamName });
-      const describeResponse = await retryWithBackoff(() => firehoseClient.send(describeCommand), 'Firehose');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'Firehose');
       return describeResponse.DeliveryStreamDescription;
     }));
     return streams;

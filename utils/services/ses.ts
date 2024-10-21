@@ -1,11 +1,18 @@
 import { SESv2Client, ListConfigurationSetsCommand, GetConfigurationSetCommand } from "@aws-sdk/client-sesv2";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const sesClient = new SESv2Client({ region });
+let sesClient: SESv2Client;
+
+async function getSESClient() {
+    if (!sesClient) {
+        sesClient = new SESv2Client({ region });
+    }
+    return sesClient;
+}
 
 async function listSESConfigurationSetResources(startDate?: Date, endDate?: Date) {
     console.log("SES Configuration Set 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listSESConfigurationSetResources(startDate?: Date, endDate?: Date
   }
   
   async function getCurrentSESConfigurationSets() {
+    const client = await getSESClient();
     const command = new ListConfigurationSetsCommand({});
-    const response = await retryWithBackoff(() => sesClient.send(command), 'SES');
+    const response = await retryWithBackoff(() => client.send(command), 'SES');
     const configSets = await Promise.all(response.ConfigurationSets.map(async (set: any) => {
       const getCommand = new GetConfigurationSetCommand({ ConfigurationSetName: set.Name });
-      const getResponse = await retryWithBackoff(() => sesClient.send(getCommand), 'SES');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'SES');
       return getResponse;
     }));
     return configSets;

@@ -1,11 +1,18 @@
 import { GameLiftClient, DescribeFleetAttributesCommand, ListFleetsCommand } from "@aws-sdk/client-gamelift";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const gameLiftClient = new GameLiftClient({ region });
+let gameLiftClient: GameLiftClient;
+
+async function getGameLiftClient() {
+    if (!gameLiftClient) {
+        gameLiftClient = new GameLiftClient({ region });
+    }
+    return gameLiftClient;
+}
 
 async function listGameLiftResources(startDate?: Date, endDate?: Date) {
     console.log("GameLift 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listGameLiftResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentGameLiftFleets() {
     const listCommand = new ListFleetsCommand({});
-    const listResponse = await retryWithBackoff(() => gameLiftClient.send(listCommand), 'GameLift'  );
+    const client = await getGameLiftClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'GameLift'  );
     
     if (!listResponse.FleetIds || listResponse.FleetIds.length === 0) {
       console.log("GameLift Fleet이 없습니다.");
@@ -55,7 +63,7 @@ async function listGameLiftResources(startDate?: Date, endDate?: Date) {
     }
   
     const describeCommand = new DescribeFleetAttributesCommand({ FleetIds: listResponse.FleetIds });
-    const describeResponse = await retryWithBackoff(() => gameLiftClient.send(describeCommand), 'GameLift');
+    const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'GameLift');
     return describeResponse.FleetAttributes || [];
   }
 

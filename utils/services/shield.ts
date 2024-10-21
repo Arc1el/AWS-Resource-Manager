@@ -1,11 +1,18 @@
 import { ShieldClient, ListProtectionsCommand, DescribeProtectionCommand } from "@aws-sdk/client-shield";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const shieldClient = new ShieldClient({ region });
+let shieldClient: ShieldClient;
+
+async function getShieldClient() {
+    if (!shieldClient) {
+        shieldClient = new ShieldClient({ region });
+    }
+    return shieldClient;
+}
 
 async function listShieldResources(startDate?: Date, endDate?: Date) {
     console.log("Shield Protection 조회 기간:", startDate, "~", endDate);
@@ -59,11 +66,12 @@ async function listShieldResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentShieldProtections() {
+    const client = await getShieldClient();
     const listCommand = new ListProtectionsCommand({});
-    const listResponse = await retryWithBackoff(() => shieldClient.send(listCommand), 'Shield');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Shield');
     const protections = await Promise.all(listResponse.Protections.map(async (protection: any) => {
       const describeCommand = new DescribeProtectionCommand({ ProtectionId: protection.Id });
-      const describeResponse = await retryWithBackoff(() => shieldClient.send(describeCommand), 'Shield');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'Shield');
       return describeResponse.Protection;
     }));
     return protections;

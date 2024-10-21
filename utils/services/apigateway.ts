@@ -1,11 +1,18 @@
 import { APIGatewayClient, GetRestApisCommand } from "@aws-sdk/client-api-gateway";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const apiGatewayClient = new APIGatewayClient({ region });
+let apiGatewayClient: APIGatewayClient;
+
+async function getApiGatewayClient() {
+  if (!apiGatewayClient) {
+    apiGatewayClient = await createAwsClient(APIGatewayClient);
+  }
+  return apiGatewayClient;
+}
 
 async function listApiGatewayResources(startDate?: Date, endDate?: Date) {
     console.log("API Gateway 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listApiGatewayResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentApiGatewayApis() {
     const command = new GetRestApisCommand({});
-    const response = await retryWithBackoff(() => apiGatewayClient.send(command), 'API Gateway');
+    const client = await getApiGatewayClient();
+    const response = await retryWithBackoff(() => client.send(command), 'API Gateway');
     return response.items;
   }
 

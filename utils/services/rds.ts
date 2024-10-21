@@ -1,12 +1,18 @@
 import { RDSClient, DescribeDBInstancesCommand } from "@aws-sdk/client-rds";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const rdsClient = new RDSClient({ region });
+let rdsClient: RDSClient;
 
+async function getRDSClient() {
+  if (!rdsClient) {
+    rdsClient = await createAwsClient(RDSClient);
+  }
+  return rdsClient;
+}
 
 async function getRDSCreationEvents(startDate: Date, endDate: Date) {
     return getResourceCreationEvents(startDate, endDate, "CreateDBInstance", "AWS::RDS::DBInstance");
@@ -55,7 +61,8 @@ async function getRDSCreationEvents(startDate: Date, endDate: Date) {
   
   async function getRDSInstances() {
     const command = new DescribeDBInstancesCommand({});
-    const response = await retryWithBackoff(() => rdsClient.send(command), 'RDS');
+    const client = await getRDSClient();
+    const response = await retryWithBackoff(() => client.send(command), 'RDS');
     return response.DBInstances;
   }
 

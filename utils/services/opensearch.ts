@@ -1,12 +1,18 @@
 import { OpenSearchClient, ListDomainNamesCommand, DescribeDomainCommand } from "@aws-sdk/client-opensearch";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const openSearchClient = new OpenSearchClient({ region });
+let openSearchClient: OpenSearchClient;
 
+async function getOpenSearchClient() {
+    if (!openSearchClient) {
+        openSearchClient = new OpenSearchClient({ region });
+    }
+    return openSearchClient;
+}
 
 async function listOpenSearchResources(startDate?: Date, endDate?: Date) {
     console.log("OpenSearch 조회 기간:", startDate, "~", endDate);
@@ -47,11 +53,12 @@ async function listOpenSearchResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentOpenSearchDomains() {
+    const client = await getOpenSearchClient();
     const listCommand = new ListDomainNamesCommand({});
-    const listResponse = await retryWithBackoff(() => openSearchClient.send(listCommand), 'OpenSearch');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'OpenSearch');
     const domains = await Promise.all(listResponse.DomainNames.map(async (domain: any) => {
       const describeCommand = new DescribeDomainCommand({ DomainName: domain.DomainName });
-      const describeResponse = await retryWithBackoff(() => openSearchClient.send(describeCommand), 'OpenSearch');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'OpenSearch');
       return describeResponse.DomainStatus;
     }));
     return domains;

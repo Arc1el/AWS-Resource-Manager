@@ -1,11 +1,18 @@
 import { DocDBClient, DescribeDBClustersCommand } from "@aws-sdk/client-docdb";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const docDBClient = new DocDBClient({ region });
+let docDBClient: DocDBClient;
+
+async function getDocDBClient() {
+  if (!docDBClient) {
+    docDBClient = await createAwsClient(DocDBClient);
+  }
+  return docDBClient;
+}
 
 async function listDocDBResources(startDate?: Date, endDate?: Date) {
     console.log("DocumentDB 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listDocDBResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentDocDBClusters() {
     const command = new DescribeDBClustersCommand({});
-    const response = await retryWithBackoff(() => docDBClient.send(command), 'DocumentDB');
+    const client = await getDocDBClient();
+    const response = await retryWithBackoff(() => client.send(command), 'DocumentDB');
     return response.DBClusters;
   }
 

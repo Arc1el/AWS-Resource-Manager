@@ -1,11 +1,17 @@
 import { DescribeVpcsCommand, EC2Client } from "@aws-sdk/client-ec2";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
-const ec2Client = new EC2Client({ region });
+let ec2Client: EC2Client;
 
+async function getEC2Client() {
+    if (!ec2Client) {
+        ec2Client = new EC2Client({ region });
+    }
+    return ec2Client;
+}
 
 async function listVPCResources(startDate?: Date, endDate?: Date) {
     console.log("VPC 조회 기간:", startDate, "~", endDate);
@@ -46,8 +52,9 @@ async function listVPCResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentVPCs() {
+    const client = await getEC2Client();
     const command = new DescribeVpcsCommand({});
-    const response = await retryWithBackoff(() => ec2Client.send(command), 'VPC');
+    const response = await retryWithBackoff(() => client.send(command), 'VPC');
     return response.Vpcs;
   }
   

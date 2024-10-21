@@ -1,11 +1,18 @@
 import { AthenaClient, ListWorkGroupsCommand, GetWorkGroupCommand } from "@aws-sdk/client-athena";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const athenaClient = new AthenaClient({ region });
+let athenaClient: AthenaClient;
+
+async function getAthenaClient() {
+  if (!athenaClient) {
+    athenaClient = await createAwsClient(AthenaClient);
+  }
+  return athenaClient;
+}
 
 async function listAthenaResources(startDate?: Date, endDate?: Date) {
     console.log("Athena WorkGroup 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listAthenaResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentAthenaWorkGroups() {
     const listCommand = new ListWorkGroupsCommand({});
-    const listResponse = await retryWithBackoff(() => athenaClient.send(listCommand), 'Athena');
+    const client = await getAthenaClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Athena');
     const workGroups = await Promise.all(listResponse.WorkGroups.map(async (workGroup: any) => {
       const getCommand = new GetWorkGroupCommand({ WorkGroup: workGroup.Name });
-      const getResponse = await retryWithBackoff(() => athenaClient.send(getCommand), 'Athena');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'Athena');
       return getResponse.WorkGroup;
     }));
     return workGroups;

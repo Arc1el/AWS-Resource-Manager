@@ -1,11 +1,18 @@
 import { DirectConnectClient, DescribeConnectionsCommand } from "@aws-sdk/client-direct-connect";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const directConnectClient = new DirectConnectClient({ region });
+let directConnectClient: DirectConnectClient;
+
+async function getDirectConnectClient() {
+  if (!directConnectClient) {
+    directConnectClient = await createAwsClient(DirectConnectClient);
+  }
+  return directConnectClient;
+}
 
 async function listDirectConnectResources(startDate?: Date, endDate?: Date) {
     console.log("Direct Connect 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listDirectConnectResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentDirectConnectConnections() {
     const command = new DescribeConnectionsCommand({});
-    const response = await retryWithBackoff(() => directConnectClient.send(command), 'Direct Connect');
+    const client = await getDirectConnectClient();
+    const response = await retryWithBackoff(() => client.send(command), 'Direct Connect');
     return response.connections;
   }
 

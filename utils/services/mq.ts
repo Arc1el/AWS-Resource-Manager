@@ -1,11 +1,18 @@
 import { MqClient, ListBrokersCommand, DescribeBrokerCommand } from "@aws-sdk/client-mq";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const mqClient = new MqClient({ region: "ap-northeast-2" });
+let mqClient: MqClient;
+
+async function getMqClient() {
+    if (!mqClient) {
+        mqClient = new MqClient({ region });
+    }
+    return mqClient;
+}
 
 async function listAmazonMQResources(startDate?: Date, endDate?: Date) {
     console.log("AmazonMQ 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listAmazonMQResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentAmazonMQBrokers() {
+    const client = await getMqClient();
     const listCommand = new ListBrokersCommand({});
-    const listResponse = await retryWithBackoff(() => mqClient.send(listCommand), 'AmazonMQ');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'AmazonMQ');
     const brokers = await Promise.all(listResponse.BrokerSummaries.map(async (broker: any) => {
       const describeCommand = new DescribeBrokerCommand({ BrokerId: broker.BrokerId });
-      const describeResponse = await retryWithBackoff(() => mqClient.send(describeCommand), 'AmazonMQ');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'AmazonMQ');
       return describeResponse;
     }));
     return brokers;

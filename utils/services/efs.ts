@@ -1,12 +1,19 @@
 import { EFSClient, DescribeFileSystemsCommand } from "@aws-sdk/client-efs";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const efsClient = new EFSClient({ region: "ap-northeast-2" });
+let efsClient: EFSClient;
+
+async function getEFSClient() {
+    if (!efsClient) {
+        efsClient = new EFSClient({ region });
+    }
+    return efsClient;
+}
 
 async function listEFSResources(startDate?: Date, endDate?: Date) {
     console.log("EFS 조회 기간:", startDate, "~", endDate);
@@ -48,7 +55,8 @@ async function listEFSResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentEFSFileSystems() {
     const command = new DescribeFileSystemsCommand({});
-    const response = await retryWithBackoff(() => efsClient.send(command), 'EFS');
+    const client = await getEFSClient();
+    const response = await retryWithBackoff(() => client.send(command), 'EFS');
     return response.FileSystems;
   }
 

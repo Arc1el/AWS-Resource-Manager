@@ -1,11 +1,18 @@
 import { EKSClient, DescribeClusterCommand, ListClustersCommand as EKSListClustersCommand } from "@aws-sdk/client-eks";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const eksClient = new EKSClient({ region });
+let eksClient: EKSClient;
+
+async function getEKSClient() {
+    if (!eksClient) {
+        eksClient = new EKSClient({ region });
+    }
+    return eksClient;
+}
 
 async function listEKSResources(startDate?: Date, endDate?: Date) {
     console.log("EKS 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listEKSResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentEKSClusters() {
     const listCommand = new EKSListClustersCommand({});
-    const listResponse = await retryWithBackoff(() => eksClient.send(listCommand), 'EKS');
+    const client = await getEKSClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'EKS');
     const clusters = await Promise.all(listResponse.clusters.map(async (clusterName: any) => {
       const describeCommand = new DescribeClusterCommand({ name: clusterName });
-      const describeResponse = await retryWithBackoff(() => eksClient.send(describeCommand), 'EKS');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'EKS');
       return describeResponse.cluster;
     }));
     return clusters;

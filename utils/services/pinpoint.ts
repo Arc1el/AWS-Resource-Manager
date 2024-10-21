@@ -1,11 +1,18 @@
 import { PinpointClient, GetAppsCommand } from "@aws-sdk/client-pinpoint";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const pinpointClient = new PinpointClient({ region });
+let pinpointClient: PinpointClient;
+
+async function getPinpointClient() {
+    if (!pinpointClient) {
+        pinpointClient = new PinpointClient({ region });
+    }
+    return pinpointClient;
+}
 
 async function listPinpointResources(startDate?: Date, endDate?: Date) {
     console.log("Pinpoint 조회 기간:", startDate, "~", endDate);
@@ -46,8 +53,9 @@ async function listPinpointResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentPinpointApps() {
+    const client = await getPinpointClient();
     const command = new GetAppsCommand({});
-    const response = await retryWithBackoff(() => pinpointClient.send(command), 'Pinpoint');
+    const response = await retryWithBackoff(() => client.send(command), 'Pinpoint');
     return response.ApplicationsResponse.Item;
   }
 

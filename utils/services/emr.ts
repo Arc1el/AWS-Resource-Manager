@@ -1,12 +1,19 @@
 import { EMRClient, ListClustersCommand as EMRListCommand, DescribeClusterCommand as EMRDescribeClusterCommand } from "@aws-sdk/client-emr";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const emrClient = new EMRClient({ region });
+let emrClient: EMRClient;
+
+async function getEMRClient() {
+    if (!emrClient) {
+        emrClient = new EMRClient({ region });
+    }
+    return emrClient;
+}
 
 async function listEMRResources(startDate?: Date, endDate?: Date) {
     console.log("EMR 조회 기간:", startDate, "~", endDate);
@@ -48,10 +55,11 @@ async function listEMRResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentEMRClusters() {
     const listCommand = new EMRListCommand({});
-    const listResponse = await retryWithBackoff(() => emrClient.send(listCommand), 'EMR');
+    const client = await getEMRClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'EMR');
     const clusters = await Promise.all(listResponse.Clusters.map(async (cluster: any) => {
       const describeCommand = new EMRDescribeClusterCommand({ ClusterId: cluster.Id });
-      const describeResponse = await retryWithBackoff(() => emrClient.send(describeCommand), 'EMR');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'EMR');
       return describeResponse.Cluster;
     }));
     return clusters;

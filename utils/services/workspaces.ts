@@ -1,13 +1,19 @@
 import { WorkSpacesClient, DescribeWorkspacesCommand } from "@aws-sdk/client-workspaces";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const workSpacesClient = new WorkSpacesClient({ region: process.env.AWS_REGION });
+let workSpacesClient: WorkSpacesClient;
 
+async function getWorkSpacesClient() {
+    if (!workSpacesClient) {
+        workSpacesClient = new WorkSpacesClient({ region: process.env.AWS_REGION });
+    }
+    return workSpacesClient;
+}
 
 async function listWorkSpacesResources(startDate?: Date, endDate?: Date) {
     console.log("WorkSpaces 조회 기간:", startDate, "~", endDate);
@@ -49,8 +55,9 @@ async function listWorkSpacesResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentWorkSpaces() {
+    const client = await getWorkSpacesClient();
     const command = new DescribeWorkspacesCommand({});
-    const response = await retryWithBackoff(() => workSpacesClient.send(command), 'WorkSpaces');
+    const response = await retryWithBackoff(() => client.send(command), 'WorkSpaces');
     return response.Workspaces || [];
   }
 

@@ -1,12 +1,18 @@
 import { BackupClient, ListBackupPlansCommand, GetBackupPlanCommand } from "@aws-sdk/client-backup";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const backupClient = new BackupClient({ region });
+let backupClient: BackupClient;
 
+async function getBackupClient() {
+  if (!backupClient) {
+    backupClient = await createAwsClient(BackupClient);
+  }
+  return backupClient;
+}
 
 async function listBackupPlanResources(startDate?: Date, endDate?: Date) {
     console.log("Backup Plan 조회 기간:", startDate, "~", endDate);
@@ -48,10 +54,11 @@ async function listBackupPlanResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentBackupPlans() {
     const command = new ListBackupPlansCommand({});
-    const response = await retryWithBackoff(() => backupClient.send(command), 'Backup');
+    const client = await getBackupClient();
+    const response = await retryWithBackoff(() => client.send(command), 'Backup');
     const backupPlans = await Promise.all(response.BackupPlansList.map(async (plan: any) => {
       const getCommand = new GetBackupPlanCommand({ BackupPlanId: plan.BackupPlanId });
-      const getResponse = await retryWithBackoff(() => backupClient.send(getCommand), 'Backup');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'Backup');
       return getResponse;
     }));
     return backupPlans;

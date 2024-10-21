@@ -1,11 +1,18 @@
 import { AppMeshClient, ListMeshesCommand, DescribeMeshCommand } from "@aws-sdk/client-app-mesh";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const appMeshClient = new AppMeshClient({ region });
+let appMeshClient: AppMeshClient;
+
+async function getAppMeshClient() {
+  if (!appMeshClient) {
+    appMeshClient = await createAwsClient(AppMeshClient);
+  }
+  return appMeshClient;
+}
 
 async function listAppMeshResources(startDate?: Date, endDate?: Date) {
   console.log("App Mesh 조회 기간:", startDate || "시작일 미지정", "~", endDate || "종료일 미지정");
@@ -60,10 +67,11 @@ async function listAppMeshResources(startDate?: Date, endDate?: Date) {
 
 async function getCurrentAppMeshes() {
   const listCommand = new ListMeshesCommand({});
-  const listResponse = await retryWithBackoff(() => appMeshClient.send(listCommand), 'App Mesh');
+  const client = await getAppMeshClient();
+  const listResponse = await retryWithBackoff(() => client.send(listCommand), 'App Mesh');
   const meshes = await Promise.all(listResponse.meshes.map(async (mesh: any) => {
     const describeCommand = new DescribeMeshCommand({ meshName: mesh.meshName });
-    const describeResponse = await retryWithBackoff(() => appMeshClient.send(describeCommand), 'App Mesh');
+    const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'App Mesh');
     return describeResponse.mesh;
   }));
   return meshes;

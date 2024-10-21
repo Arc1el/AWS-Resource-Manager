@@ -1,11 +1,18 @@
 import { CloudFrontClient, ListDistributionsCommand } from "@aws-sdk/client-cloudfront";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const cloudFrontClient = new CloudFrontClient({ region });
+let cloudFrontClient: CloudFrontClient;
+
+async function getCloudFrontClient() {
+  if (!cloudFrontClient) {
+    cloudFrontClient = await createAwsClient(CloudFrontClient);
+  }
+  return cloudFrontClient;
+}
 
 async function listCloudFrontResources(startDate?: Date, endDate?: Date) {
     console.log("CloudFront 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listCloudFrontResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentCloudFrontDistributions() {
     const command = new ListDistributionsCommand({});
-    const response = await retryWithBackoff(() => cloudFrontClient.send(command), 'CloudFront');
+    const client = await getCloudFrontClient();
+    const response = await retryWithBackoff(() => client.send(command), 'CloudFront');
     return response.DistributionList.Items;
   }
 

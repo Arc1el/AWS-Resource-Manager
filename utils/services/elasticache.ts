@@ -1,11 +1,18 @@
 import { ElastiCacheClient, DescribeCacheClustersCommand } from "@aws-sdk/client-elasticache";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const elastiCacheClient = new ElastiCacheClient({ region });
+let elastiCacheClient: ElastiCacheClient;
+
+async function getElastiCacheClient() {
+    if (!elastiCacheClient) {
+        elastiCacheClient = new ElastiCacheClient({ region });
+    }
+    return elastiCacheClient;
+}
 
 async function listElastiCacheResources(startDate?: Date, endDate?: Date) {
     console.log("ElastiCache 조회 기간:", startDate, "~", endDate);
@@ -47,7 +54,8 @@ async function listElastiCacheResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentElastiCacheClusters() {
     const command = new DescribeCacheClustersCommand({});
-    const response = await retryWithBackoff(() => elastiCacheClient.send(command), 'ElastiCache');
+    const client = await getElastiCacheClient();
+    const response = await retryWithBackoff(() => client.send(command), 'ElastiCache');
     return response.CacheClusters;
   }
 

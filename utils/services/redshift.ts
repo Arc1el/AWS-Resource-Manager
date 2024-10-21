@@ -1,11 +1,18 @@
 import { RedshiftClient, DescribeClustersCommand as RedshiftDescribeClustersCommand } from "@aws-sdk/client-redshift";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const redshiftClient = new RedshiftClient({ region });
+let redshiftClient: RedshiftClient;
+
+async function getRedshiftClient() {
+    if (!redshiftClient) {
+        redshiftClient = new RedshiftClient({ region });
+    }
+    return redshiftClient;
+}
 
 async function listRedshiftResources(startDate?: Date, endDate?: Date) {
     console.log("Redshift 조회 기간:", startDate, "~", endDate);
@@ -46,8 +53,9 @@ async function listRedshiftResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentRedshiftClusters() {
+    const client = await getRedshiftClient();
     const command = new RedshiftDescribeClustersCommand({});
-    const response = await retryWithBackoff(() => redshiftClient.send(command), 'Redshift');
+    const response = await retryWithBackoff(() => client.send(command), 'Redshift');
     return response.Clusters;
   }
 

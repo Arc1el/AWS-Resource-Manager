@@ -1,11 +1,18 @@
 import { DynamoDBClient, ListTablesCommand, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const dynamoDBClient = new DynamoDBClient({ region });
+let dynamoDBClient: DynamoDBClient;
+
+async function getDynamoDBClient() {
+    if (!dynamoDBClient) {
+        dynamoDBClient = new DynamoDBClient({ region });
+    }
+    return dynamoDBClient;
+}
 
 async function listDynamoDBResources(startDate?: Date, endDate?: Date) {
     console.log("DynamoDB 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listDynamoDBResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentDynamoDBTables() {
     const listCommand = new ListTablesCommand({});
-    const listResponse = await retryWithBackoff(() => dynamoDBClient.send(listCommand), 'DynamoDB');
+    const client = await getDynamoDBClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'DynamoDB');
     const tables = await Promise.all(listResponse.TableNames.map(async (tableName: any) => {
       const describeCommand = new DescribeTableCommand({ TableName: tableName });
-      const describeResponse = await retryWithBackoff(() => dynamoDBClient.send(describeCommand), 'DynamoDB');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'DynamoDB');
       return describeResponse.Table;
     }));
     return tables;

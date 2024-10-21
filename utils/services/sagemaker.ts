@@ -1,12 +1,18 @@
 import { SageMakerClient, ListNotebookInstancesCommand } from "@aws-sdk/client-sagemaker";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const sageMakerClient = new SageMakerClient({ region });
+let sageMakerClient: SageMakerClient;
 
+async function getSageMakerClient() {
+    if (!sageMakerClient) {
+        sageMakerClient = new SageMakerClient({ region });
+    }
+    return sageMakerClient;
+}
 
 async function listSageMakerResources(startDate?: Date, endDate?: Date) {
     console.log("SageMaker 조회 기간:", startDate, "~", endDate);
@@ -47,8 +53,9 @@ async function listSageMakerResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentSageMakerInstances() {
+    const client = await getSageMakerClient();
     const command = new ListNotebookInstancesCommand({});
-    const response = await retryWithBackoff(() => sageMakerClient.send(command), 'SageMaker');
+    const response = await retryWithBackoff(() => client.send(command), 'SageMaker');
     return response.NotebookInstances;
   }
   

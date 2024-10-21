@@ -1,11 +1,18 @@
 import { KafkaClient, ListClustersV2Command as MSKListCommand, DescribeClusterV2Command } from "@aws-sdk/client-kafka";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const mskClient = new KafkaClient({ region });
+let mskClient: KafkaClient;
+
+async function getMskClient() {
+    if (!mskClient) {
+        mskClient = new KafkaClient({ region });
+    }
+    return mskClient;
+}
 
 async function listMSKResources(startDate?: Date, endDate?: Date) {
     console.log("MSK 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listMSKResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentMSKClusters() {
+    const client = await getMskClient();
     const listCommand = new MSKListCommand({});
-    const listResponse = await retryWithBackoff(() => mskClient.send(listCommand), 'MSK');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'MSK');
     const clusters = await Promise.all(listResponse.ClusterInfoList.map(async (cluster: any) => {
       const describeCommand = new DescribeClusterV2Command({ ClusterArn: cluster.ClusterArn });
-      const describeResponse = await retryWithBackoff(() => mskClient.send(describeCommand), 'MSK');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'MSK');
       return describeResponse.ClusterInfo;
     }));
     return clusters;

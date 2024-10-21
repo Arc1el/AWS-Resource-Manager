@@ -1,11 +1,18 @@
 import { KinesisClient, ListStreamsCommand, DescribeStreamCommand } from "@aws-sdk/client-kinesis";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const kinesisClient = new KinesisClient({ region });
+let kinesisClient: KinesisClient;
+
+async function getKinesisClient() {
+    if (!kinesisClient) {
+        kinesisClient = new KinesisClient({ region });
+    }
+    return kinesisClient;
+}
 
 async function listKinesisResources(startDate?: Date, endDate?: Date) {
     console.log("Kinesis 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listKinesisResources(startDate?: Date, endDate?: Date) {
   }
 
   async function getCurrentKinesisStreams() {
+    const client = await getKinesisClient();
     const listCommand = new ListStreamsCommand({});
-    const listResponse = await retryWithBackoff(() => kinesisClient.send(listCommand), 'Kinesis');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Kinesis');
     const streams = await Promise.all(listResponse.StreamNames.map(async (streamName: any) => {
       const describeCommand = new DescribeStreamCommand({ StreamName: streamName });
-      const describeResponse = await retryWithBackoff(() => kinesisClient.send(describeCommand), 'Kinesis');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'Kinesis');
       return describeResponse.StreamDescription;
     }));
     return streams;

@@ -1,11 +1,18 @@
 import { CodeDeployClient, ListApplicationsCommand, GetApplicationCommand } from "@aws-sdk/client-codedeploy";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const codeDeployClient = new CodeDeployClient({ region });
+let codeDeployClient: CodeDeployClient;
+
+async function getCodeDeployClient() {
+  if (!codeDeployClient) {
+    codeDeployClient = await createAwsClient(CodeDeployClient);
+  }
+  return codeDeployClient;
+}
 
 async function listCodeDeployResources(startDate?: Date, endDate?: Date) {
     console.log("CodeDeploy 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listCodeDeployResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentCodeDeployApplications() {
     const listCommand = new ListApplicationsCommand({});
-    const listResponse = await retryWithBackoff(() => codeDeployClient.send(listCommand), 'CodeDeploy');
+    const client = await getCodeDeployClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'CodeDeploy');
     const applications = await Promise.all(listResponse.applications.map(async (appName: any) => {
       const getCommand = new GetApplicationCommand({ applicationName: appName });
-      const getResponse = await retryWithBackoff(() => codeDeployClient.send(getCommand), 'CodeDeploy');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'CodeDeploy');
       return getResponse.application;
     }));
     return applications;

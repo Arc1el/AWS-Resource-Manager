@@ -1,11 +1,18 @@
 import { SSMClient, ListAssociationsCommand, DescribeAssociationCommand } from "@aws-sdk/client-ssm";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const ssmClient = new SSMClient({ region });
+let ssmClient: SSMClient;
+
+async function getSsmClient() {
+  if (!ssmClient) {
+    ssmClient = await createAwsClient(SSMClient);
+  }
+  return ssmClient;
+}
 
 async function listChatbotResources(startDate?: Date, endDate?: Date) {
     console.log("Chatbot 조회 기간:", startDate, "~", endDate);
@@ -54,7 +61,8 @@ async function listChatbotResources(startDate?: Date, endDate?: Date) {
         }
       ]
     });
-    const response = await retryWithBackoff(() => ssmClient.send(command), 'Chatbot');
+    const client = await getSsmClient();
+    const response = await retryWithBackoff(() => client.send(command), 'Chatbot');
     return response.Associations || [];
   }
 

@@ -1,12 +1,18 @@
 import { DatabaseMigrationServiceClient, DescribeReplicationInstancesCommand } from "@aws-sdk/client-database-migration-service";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const dmsClient = new DatabaseMigrationServiceClient({ region });
+let dmsClient: DatabaseMigrationServiceClient;
 
+async function getDMSClient() {
+  if (!dmsClient) {
+    dmsClient = await createAwsClient(DatabaseMigrationServiceClient);
+  }
+  return dmsClient;
+}
 
 async function listDMSResources(startDate?: Date, endDate?: Date) {
     console.log("DMS 조회 기간:", startDate, "~", endDate);
@@ -48,7 +54,8 @@ async function listDMSResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentDMSInstances() {
     const command = new DescribeReplicationInstancesCommand({});
-    const response = await retryWithBackoff(() => dmsClient.send(command), 'DMS');
+    const client = await getDMSClient();
+    const response = await retryWithBackoff(() => client.send(command), 'DMS');
     return response.ReplicationInstances;
   }
 

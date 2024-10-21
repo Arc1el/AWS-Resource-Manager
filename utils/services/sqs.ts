@@ -1,12 +1,19 @@
 import { SQSClient, ListQueuesCommand, GetQueueAttributesCommand } from "@aws-sdk/client-sqs";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const sqsClient = new SQSClient({ region: "ap-northeast-2" });
+let sqsClient: SQSClient;
+
+async function getSQSClient() {
+    if (!sqsClient) {
+        sqsClient = new SQSClient({ region });
+    }
+    return sqsClient;
+}
 
 async function listSQSResources(startDate?: Date, endDate?: Date) {
     console.log("SQS 조회 기간:", startDate, "~", endDate);
@@ -52,8 +59,9 @@ async function listSQSResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentSQSQueues() {
+    const client = await getSQSClient();
     const listCommand = new ListQueuesCommand({});
-    const listResponse = await retryWithBackoff(() => sqsClient.send(listCommand), 'SQS');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'SQS');
     
     if (!listResponse.QueueUrls || listResponse.QueueUrls.length === 0) {
       console.log("SQS 큐가 없습니다.");
@@ -65,7 +73,7 @@ async function listSQSResources(startDate?: Date, endDate?: Date) {
         QueueUrl: queueUrl,
         AttributeNames: ['All']
       });
-      const attributesResponse = await retryWithBackoff(() => sqsClient.send(getAttributesCommand), 'SQS');
+      const attributesResponse = await retryWithBackoff(() => client.send(getAttributesCommand), 'SQS');
       return { QueueUrl: queueUrl, ...attributesResponse.Attributes };
     }));
     return queues;

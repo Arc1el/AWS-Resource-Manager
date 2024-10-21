@@ -1,11 +1,18 @@
 import { IoTClient, ListThingsCommand, DescribeThingCommand } from "@aws-sdk/client-iot";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const iotClient = new IoTClient({ region });
+let iotClient: IoTClient;
+
+async function getIoTClient() {
+    if (!iotClient) {
+        iotClient = new IoTClient({ region });
+    }
+    return iotClient;
+}
 
 async function listIoTThingResources(startDate?: Date, endDate?: Date) {
     console.log("IoT Thing 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listIoTThingResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentIoTThings() {
+    const client = await getIoTClient();
     const command = new ListThingsCommand({});
-    const response = await retryWithBackoff(() => iotClient.send(command), 'IoT');
+    const response = await retryWithBackoff(() => client.send(command), 'IoT');
     const things = await Promise.all(response.things.map(async (thing: any) => {
       const describeCommand = new DescribeThingCommand({ thingName: thing.thingName });
-      const describeResponse = await retryWithBackoff(() => iotClient.send(describeCommand), 'IoT');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'IoT');
       return describeResponse;
     }));
     return things;

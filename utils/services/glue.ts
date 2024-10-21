@@ -1,11 +1,18 @@
 import { GlueClient, ListJobsCommand, GetJobCommand } from "@aws-sdk/client-glue";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const glueClient = new GlueClient({ region });
+let glueClient: GlueClient;
+
+async function getGlueClient() {
+    if (!glueClient) {
+        glueClient = new GlueClient({ region });
+    }
+    return glueClient;
+}
 
 async function listGlueResources(startDate?: Date, endDate?: Date) {
     console.log("Glue Job 조회 기간:", startDate, "~", endDate);
@@ -46,11 +53,12 @@ async function listGlueResources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentGlueJobs() {
+    const client = await getGlueClient();
     const command = new ListJobsCommand({});
-    const response = await retryWithBackoff(() => glueClient.send(command), 'Glue');
+    const response = await retryWithBackoff(() => client.send(command), 'Glue');
     const jobDetails = await Promise.all(response.JobNames.map(async (jobName: any) => {
       const getJobCommand = new GetJobCommand({ JobName: jobName });
-      const jobResponse = await retryWithBackoff(() => glueClient.send(getJobCommand), 'Glue');
+      const jobResponse = await retryWithBackoff(() => client.send(getJobCommand), 'Glue');
       return jobResponse.Job;
     }));
     return jobDetails;

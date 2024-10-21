@@ -1,12 +1,19 @@
 import { AppStreamClient, DescribeFleetsCommand } from "@aws-sdk/client-appstream";
 
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const appStreamClient = new AppStreamClient({ region: process.env.AWS_REGION });
+let appStreamClient: AppStreamClient;
+
+async function getAppStreamClient() {
+  if (!appStreamClient) {
+    appStreamClient = await createAwsClient(AppStreamClient);
+  }
+  return appStreamClient;
+}
 
 async function listAppStreamResources(startDate?: Date, endDate?: Date) {
     console.log("AppStream 조회 기간:", startDate, "~", endDate);
@@ -48,7 +55,8 @@ async function listAppStreamResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentAppStreamFleets() {
     const command = new DescribeFleetsCommand({});
-    const response = await retryWithBackoff(() => appStreamClient.send(command), 'AppStream');
+    const client = await getAppStreamClient();
+    const response = await retryWithBackoff(() => client.send(command), 'AppStream');
     return response.Fleets || [];
   }
 

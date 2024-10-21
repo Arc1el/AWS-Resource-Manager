@@ -1,11 +1,18 @@
 import { WAFV2Client, ListWebACLsCommand, GetWebACLCommand } from "@aws-sdk/client-wafv2";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const wafv2Client = new WAFV2Client({ region });
+let wafv2Client: WAFV2Client;
+
+async function getWAFV2Client() {
+    if (!wafv2Client) {
+        wafv2Client = new WAFV2Client({ region });
+    }
+    return wafv2Client;
+}
 
 async function listWAFv2Resources(startDate?: Date, endDate?: Date) {
     console.log("WAFv2 WebACL 조회 기간:", startDate, "~", endDate);
@@ -47,15 +54,16 @@ async function listWAFv2Resources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentWAFv2WebACLs() {
+    const client = await getWAFV2Client();
     const listCommand = new ListWebACLsCommand({ Scope: 'REGIONAL' });
-    const listResponse = await retryWithBackoff(() => wafv2Client.send(listCommand), 'WAFv2');
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'WAFv2');
     const webACLs = await Promise.all(listResponse.WebACLs.map(async (webACL: any) => {
       const getCommand = new GetWebACLCommand({ 
         Id: webACL.Id, 
         Name: webACL.Name, 
         Scope: 'REGIONAL' 
       });
-      const getResponse = await retryWithBackoff(() => wafv2Client.send(getCommand), 'WAFv2');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'WAFv2');
       return getResponse.WebACL;
     }));
     return webACLs;

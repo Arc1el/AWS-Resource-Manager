@@ -1,11 +1,18 @@
 import { GuardDutyClient, ListDetectorsCommand, GetDetectorCommand } from "@aws-sdk/client-guardduty";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient,   getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const guardDutyClient = new GuardDutyClient({ region });
+let guardDutyClient: GuardDutyClient;
+
+async function getGuardDutyClient() {
+    if (!guardDutyClient) {
+        guardDutyClient = new GuardDutyClient({ region });
+    }
+    return guardDutyClient;
+}
 
 async function listGuardDutyResources(startDate?: Date, endDate?: Date) {
     console.log("GuardDuty 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listGuardDutyResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentGuardDutyDetectors() {
     const listCommand = new ListDetectorsCommand({});
-    const listResponse = await retryWithBackoff(() => guardDutyClient.send(listCommand), 'GuardDuty');
+    const client = await getGuardDutyClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'GuardDuty');
     const detectors = await Promise.all(listResponse.DetectorIds.map(async (detectorId: any) => {
       const getCommand = new GetDetectorCommand({ DetectorId: detectorId });
-      const getResponse = await retryWithBackoff(() => guardDutyClient.send(getCommand), 'GuardDuty');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'GuardDuty');
       return { DetectorId: detectorId, ...getResponse };
     }));
     return detectors;

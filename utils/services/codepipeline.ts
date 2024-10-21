@@ -1,12 +1,18 @@
 import { CodePipelineClient, ListPipelinesCommand, GetPipelineCommand } from "@aws-sdk/client-codepipeline";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const codePipelineClient = new CodePipelineClient({ region });
+let codePipelineClient: CodePipelineClient;
 
+async function getCodePipelineClient() {
+  if (!codePipelineClient) {
+    codePipelineClient = await createAwsClient(CodePipelineClient);
+  }
+  return codePipelineClient;
+}
 
 async function listCodePipelineResources(startDate?: Date, endDate?: Date) {
     console.log("CodePipeline 조회 간:", startDate, "~", endDate);
@@ -48,10 +54,11 @@ async function listCodePipelineResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentCodePipelines() {
     const listCommand = new ListPipelinesCommand({});
-    const listResponse = await retryWithBackoff(() => codePipelineClient.send(listCommand), 'CodePipeline');
+    const client = await getCodePipelineClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'CodePipeline');
     const pipelines = await Promise.all(listResponse.pipelines.map(async (pipeline: any) => {
       const getCommand = new GetPipelineCommand({ name: pipeline.name });
-      const getResponse = await retryWithBackoff(() => codePipelineClient.send(getCommand), 'CodePipeline');
+      const getResponse = await retryWithBackoff(() => client.send(getCommand), 'CodePipeline');
       return getResponse.pipeline;
     }));
     return pipelines;

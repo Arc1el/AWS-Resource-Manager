@@ -1,11 +1,18 @@
 import { ConnectClient, ListInstancesCommand, DescribeInstanceCommand } from "@aws-sdk/client-connect";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const connectClient = new ConnectClient({ region });
+let connectClient: ConnectClient;
+
+async function getConnectClient() {
+  if (!connectClient) {
+    connectClient = await createAwsClient(ConnectClient);
+  }
+  return connectClient;
+}
 
 async function listConnectResources(startDate?: Date, endDate?: Date) {
     console.log("Connect 조회 기간:", startDate, "~", endDate);
@@ -47,10 +54,11 @@ async function listConnectResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentConnectInstances() {
     const listCommand = new ListInstancesCommand({});
-    const listResponse = await retryWithBackoff(() => connectClient.send(listCommand), 'Connect');
+    const client = await getConnectClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'Connect');
     const instances = await Promise.all(listResponse.InstanceSummaryList.map(async (instance: any) => {
       const describeCommand = new DescribeInstanceCommand({ InstanceId: instance.Id });
-      const describeResponse = await retryWithBackoff(() => connectClient.send(describeCommand), 'Connect');
+      const describeResponse = await retryWithBackoff(() => client.send(describeCommand), 'Connect');
       return describeResponse.Instance;
     }));
     return instances;

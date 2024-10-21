@@ -1,12 +1,18 @@
 import { Route53Client, ListHostedZonesCommand } from "@aws-sdk/client-route-53";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const route53Client = new Route53Client({ region });
+let route53Client: Route53Client;
 
+async function getRoute53Client() {
+    if (!route53Client) {
+        route53Client = new Route53Client({ region });
+    }
+    return route53Client;
+}
 
 async function listRoute53Resources(startDate?: Date, endDate?: Date) {
     console.log("Route53 조회 기간:", startDate, "~", endDate);
@@ -47,8 +53,9 @@ async function listRoute53Resources(startDate?: Date, endDate?: Date) {
   }
   
   async function getCurrentRoute53HostedZones() {
+    const client = await getRoute53Client();
     const command = new ListHostedZonesCommand({});
-    const response = await retryWithBackoff(() => route53Client.send(command), 'Route53');
+    const response = await retryWithBackoff(() => client.send(command), 'Route53');
     return response.HostedZones;
   }
     

@@ -1,11 +1,18 @@
 import { CodeBuildClient, ListProjectsCommand, BatchGetProjectsCommand } from "@aws-sdk/client-codebuild";
-import { getResourceCreationEvents, retryWithBackoff } from '../aws';
+import { createAwsClient, getResourceCreationEvents, retryWithBackoff } from '../aws';
 import { format, utcToZonedTime } from 'date-fns-tz';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
 const TIMEZONE = 'Asia/Seoul';
 
-const codeBuildClient = new CodeBuildClient({ region });
+let codeBuildClient: CodeBuildClient;
+
+async function getCodeBuildClient() {
+  if (!codeBuildClient) {
+    codeBuildClient = await createAwsClient(CodeBuildClient);
+  }
+  return codeBuildClient;
+}
 
 async function listCodeBuildResources(startDate?: Date, endDate?: Date) {
     console.log("CodeBuild 조회 기간:", startDate, "~", endDate);
@@ -47,9 +54,10 @@ async function listCodeBuildResources(startDate?: Date, endDate?: Date) {
   
   async function getCurrentCodeBuildProjects() {
     const listCommand = new ListProjectsCommand({});
-    const listResponse = await retryWithBackoff(() => codeBuildClient.send(listCommand), 'CodeBuild');
+    const client = await getCodeBuildClient();
+    const listResponse = await retryWithBackoff(() => client.send(listCommand), 'CodeBuild');
     const batchGetCommand = new BatchGetProjectsCommand({ names: listResponse.projects });
-    const batchGetResponse = await retryWithBackoff(() => codeBuildClient.send(batchGetCommand), 'CodeBuild');
+    const batchGetResponse = await retryWithBackoff(() => client.send(batchGetCommand), 'CodeBuild');
     return batchGetResponse.projects;
   }
 

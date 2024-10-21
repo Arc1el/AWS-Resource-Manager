@@ -1,4 +1,7 @@
 import { CloudTrailClient, LookupEventsCommand, LookupEventsCommandInput } from "@aws-sdk/client-cloudtrail";
+import { STSClient, AssumeRoleCommand } from "@aws-sdk/client-sts";
+import { fromTemporaryCredentials } from "@aws-sdk/credential-providers";
+import { defaultProvider } from "@aws-sdk/credential-provider-node";
 
 import { listEC2Resources } from './services/ec2';
 import { listRDSResources } from './services/rds';
@@ -48,7 +51,78 @@ import { listWorkSpacesResources } from './services/workspaces';
 import { listLambdaFunctionResources } from './services/lambda';
 
 const region = process.env.AWS_REGION || "ap-northeast-2";
-const cloudTrailClient = new CloudTrailClient({ region });
+const roleArn = "arn:aws:iam::759320821027:role/assumerole-admin";
+const roleSessionName = "CrossAccountSession";
+
+const stsClient = new STSClient({ region });
+
+async function assumeRole() {
+  try {
+    const command = new AssumeRoleCommand({
+      RoleArn: roleArn,
+      RoleSessionName: roleSessionName,
+    });
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    console.log("어슘시작");
+    const response = await stsClient.send(command);
+
+    if (!response.Credentials) {
+      throw new Error("자격 증명을 받지 못했습니다.");
+    }
+
+    return fromTemporaryCredentials({
+      clientConfig: { region },
+      params: {
+        RoleArn: roleArn,
+        RoleSessionName: roleSessionName,
+      },
+    });
+  } catch (error) {
+    console.error("역할 전환 중 오류 발생:", error);
+    throw error;
+  }
+}
+
+export async function createAwsClient(ClientClass: any) {
+  let credentials;
+  try {
+    credentials = await assumeRole();
+  } catch (error) {
+    console.warn("역할 전환 실패, 기본 자격 증명 사용:", error);
+    credentials = defaultProvider();
+  }
+  return new ClientClass({ region, credentials });
+}
+
+// CloudTrailClient 인스턴스 생성
+let cloudTrailClient: CloudTrailClient;
+
+export async function getCloudTrailClient() {
+  if (!cloudTrailClient) {
+    cloudTrailClient = await createAwsClient(CloudTrailClient);
+  }
+  return cloudTrailClient;
+}
 
 const MAX_RETRIES = 10;
 const BASE_DELAY = 1000; // 1초
@@ -72,6 +146,7 @@ async function retryWithBackoff(fn: () => Promise<any>, serviceName: string, max
 }
 
 async function getResourceCreationEvents(startDate: Date, endDate: Date, eventName: string, resourceType: string) {
+  const cloudTrailClient = await getCloudTrailClient();
   const params = {
     StartTime: startDate,
     EndTime: endDate,
